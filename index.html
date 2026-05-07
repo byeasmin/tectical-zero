@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TACTICAL ZERO</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --accent: #c8ff00;
+        --accent2: #ff4d00;
+        --dim: #3a3a2a;
+        --panel: rgba(10, 12, 8, 0.85);
+        --border: rgba(200, 255, 0, 0.25);
+        --text: #d0d8b0;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #080a05;
+        font-family: "Share Tech Mono", monospace;
+        cursor: crosshair;
+        overflow: hidden;
+      }
+
+      /* Scanline overlay */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 0, 0, 0.08) 2px,
+          rgba(0, 0, 0, 0.08) 4px
+        );
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      /* Vignette */
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(
+          ellipse at center,
+          transparent 55%,
+          rgba(0, 0, 0, 0.75) 100%
+        );
+        pointer-events: none;
+        z-index: 99;
+      }
+
+      #gameContainer {
+        position: relative;
+      }
+
+      #gameCanvas {
+        display: block;
+        border: 1px solid rgba(200, 255, 0, 0.4);
+        outline: 4px solid rgba(200, 255, 0, 0.06);
+        outline-offset: 4px;
+      }
+
+      /* ── HUD ── */
+      #ui {
+        position: absolute;
+        inset: 0;
+        display: none;
+        pointer-events: none;
+      }
+
+      /* Top-left: health + status */
+      #hud-tl {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .hud-label {
+        font-size: 9px;
+        letter-spacing: 3px;
+        color: var(--accent);
+        opacity: 0.7;
+        text-transform: uppercase;
+      }
+
+      #healthTrack {
+        width: 160px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        position: relative;
+      }
+      #healthFill {
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.15s;
+        box-shadow: 0 0 8px var(--accent);
+      }
+      #healthTrack::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: -3px;
+        width: 1px;
+        height: 9px;
+        background: var(--accent);
+        opacity: 0.4;
+      }
+
+      #healthVal {
+        font-size: 28px;
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+        letter-spacing: 1px;
+      }
+
+      /* Top-center: wave info */
+      #hud-tc {
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      #waveTag {
+        font-size: 9px;
+        letter-spacing: 4px;
+        color: var(--accent);
+        opacity: 0.5;
+      }
+
+      #waveInfo {
+        font-size: 22px;
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: 2px;
+      }
+
+      #enemyCount {
+        font-size: 11px;
+        color: var(--accent2);
+        letter-spacing: 2px;
+      }
+
+      /* Top-right: score */
+      #hud-tr {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      #scoreLabel {
+        font-size: 9px;
+        letter-spacing: 3px;
+        color: var(--accent);
+        opacity: 0.5;
+      }
+
+      #scoreVal {
+        font-size: 28px;
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: 1px;
+      }
+
+      /* Bottom bar */
+      #hud-bottom {
+        position: absolute;
+        bottom: 12px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+      }
+
+      .bottom-block {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      #ammoDisplay {
+        font-size: 14px;
+        color: var(--text);
+        opacity: 0.6;
+        letter-spacing: 2px;
+      }
+
+      /* Corner brackets */
+      .corner {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-color: var(--accent);
+        border-style: solid;
+        opacity: 0.45;
+      }
+      .corner-tl {
+        top: 6px;
+        left: 6px;
+        border-width: 1px 0 0 1px;
+      }
+      .corner-tr {
+        top: 6px;
+        right: 6px;
+        border-width: 1px 1px 0 0;
+      }
+      .corner-bl {
+        bottom: 6px;
+        left: 6px;
+        border-width: 0 0 1px 1px;
+      }
+      .corner-br {
+        bottom: 6px;
+        right: 6px;
+        border-width: 0 1px 1px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer">
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+      <div id="ui">
+        <!-- Corner brackets -->
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+
+        <!-- Health -->
+        <div id="hud-tl">
+          <div class="hud-label">Integrity</div>
+          <div id="healthVal">100</div>
+          <div id="healthTrack"><div id="healthFill"></div></div>
+        </div>
+
+        <!-- Wave -->
+        <div id="hud-tc">
+          <div id="waveTag">TACTICAL ZERO</div>
+          <div id="waveInfo">
+            LVL <span id="levelDisplay">1</span> · W<span id="waveDisplay"
+              >1</span
+            >/3
+          </div>
+          <div id="enemyCount">
+            ▸ <span id="enemiesDisplay">0</span> HOSTILES
+          </div>
+        </div>
+
+        <!-- Score -->
+        <div id="hud-tr">
+          <div id="scoreLabel">Score</div>
+          <div id="scoreVal" id="scoreDisplay">0</div>
+        </div>
+
+        <!-- Bottom -->
+        <div id="hud-bottom">
+          <div class="bottom-block">
+            <div class="hud-label">Status</div>
+            <div id="ammoDisplay">ACTIVE</div>
+          </div>
+          <div class="bottom-block" style="text-align: right">
+            <div class="hud-label">Controls</div>
+            <div
+              style="
+                font-size: 10px;
+                color: var(--text);
+                opacity: 0.4;
+                letter-spacing: 1px;
+              "
+            >
+              WASD · MOUSE AIM · CLICK FIRE · ESC PAUSE
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ============ CONSTANTS ============
+      const CW = 800,
+        CH = 600;
+      const COLORS = {
+        bg: "#0a0c08",
+        grid: "#111408",
+        gridAccent: "#161a0c",
+        player: "#c8ff00",
+        playerInner: "#445500",
+        barrel: "#556600",
+        basicEnemy: "#ff4d00",
+        fastEnemy: "#ffaa00",
+        tankEnemy: "#cc2200",
+        bullet: "#c8ff00",
+        enemyBullet: "#ff6b6b",
+      };
+
+      const GS = {
+        MENU: "menu",
+        PLAYING: "playing",
+        PAUSED: "paused",
+        LEVEL_COMPLETE: "levelComplete",
+        GAME_OVER: "gameOver",
+        VICTORY: "victory",
+      };
+      const ENEMY_TYPES = {
+        BASIC: {
+          speed: 80,
+          hp: 50,
+          damage: 20,
+          color: COLORS.basicEnemy,
+          radius: 15,
+          score: 100,
+        },
+        FAST: {
+          speed: 150,
+          hp: 25,
+          damage: 15,
+          color: COLORS.fastEnemy,
+          radius: 12,
+          score: 150,
+        },
+        TANK: {
+          speed: 40,
+          hp: 150,
+          damage: 30,
+          color: COLORS.tankEnemy,
+          radius: 22,
+          score: 250,
+        },
+      };
+
+      // ============ SETUP ============
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const ui = document.getElementById("ui");
+      const healthFill = document.getElementById("healthFill");
+      const healthVal = document.getElementById("healthVal");
+      const levelDisplay = document.getElementById("levelDisplay");
+      const waveDisplay = document.getElementById("waveDisplay");
+      const enemiesDisplay = document.getElementById("enemiesDisplay");
+      const scoreValEl = document.getElementById("scoreVal");
+      const ammoDisplay = document.getElementById("ammoDisplay");
+
+      let gameState = GS.MENU,
+        lastTime = 0,
+        score = 0;
+      let highScore = parseInt(localStorage.getItem("tacticalZeroHS")) || 0;
+      let currentLevel = 1,
+        currentWave = 1,
+        totalLevels = 10,
+        wavesPerLevel = 3;
+      let enemiesRemaining = 0,
+        levelTransitionTimer = 0;
+      const keys = {};
+      let mouseX = CW / 2,
+        mouseY = CH / 2,
+        mouseDown = false;
+      let shakeIntensity = 0;
+      let bullets = [],
+        enemies = [],
+        particles = [];
+
+      // Animated grid offset for parallax feel
+      let gridOffset = 0;
+
+      // ============ CLASSES ============
+      class Particle {
+        constructor(x, y, color, speed, angle, life, size) {
+          this.x = x;
+          this.y = y;
+          this.color = color;
+          this.vx = Math.cos(angle) * speed;
+          this.vy = Math.sin(angle) * speed;
+          this.life = life;
+          this.maxLife = life;
+          this.size = size;
+        }
+        update(dt) {
+          this.x += this.vx * dt;
+          this.y += this.vy * dt;
+          this.life -= dt;
+          this.vx *= 0.96;
+          this.vy *= 0.96;
+        }
+        draw() {
+          const a = this.life / this.maxLife;
+          ctx.globalAlpha = a;
+          ctx.fillStyle = this.color;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size * a, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        isDead() {
+          return this.life <= 0;
+        }
+      }
+
+      class Player {
+        constructor() {
+          this.x = CW / 2;
+          this.y = CH / 2;
+          this.radius = 16;
+          this.speed = 200;
+          this.maxHealth = 100;
+          this.health = this.maxHealth;
+          this.shootCooldown = 0;
+          this.shootRate = 0.12;
+          this.invincibilityTime = 0;
+          this.invincibilityDuration = 0.5;
+          this.angle = 0;
+          this.muzzleFlash = 0;
+          this.trail = [];
+        }
+        reset() {
+          this.x = CW / 2;
+          this.y = CH / 2;
+          this.health = this.maxHealth;
+          this.invincibilityTime = 0;
+          this.shootCooldown = 0;
+          this.trail = [];
+        }
+        update(dt) {
+          let dx = 0,
+            dy = 0;
+          if (keys["ArrowUp"] || keys["KeyW"]) dy -= 1;
+          if (keys["ArrowDown"] || keys["KeyS"]) dy += 1;
+          if (keys["ArrowLeft"] || keys["KeyA"]) dx -= 1;
+          if (keys["ArrowRight"] || keys["KeyD"]) dx += 1;
+          if (dx && dy) {
+            const l = Math.sqrt(2);
+            dx /= l;
+            dy /= l;
+          }
+          this.x += dx * this.speed * dt;
+          this.y += dy * this.speed * dt;
+          this.x = Math.max(this.radius, Math.min(CW - this.radius, this.x));
+          this.y = Math.max(this.radius, Math.min(CH - this.radius, this.y));
+
+          // Movement trail
+          if (dx || dy) {
+            this.trail.push({ x: this.x, y: this.y, life: 1 });
+          }
+          this.trail = this.trail.filter((t) => {
+            t.life -= dt * 6;
+            return t.life > 0;
+          });
+
+          this.angle = Math.atan2(mouseY - this.y, mouseX - this.x);
+          this.shootCooldown -= dt;
+          if (mouseDown && this.shootCooldown <= 0) this.shoot();
+          if (this.invincibilityTime > 0) this.invincibilityTime -= dt;
+          if (this.muzzleFlash > 0) this.muzzleFlash -= dt * 12;
+        }
+        shoot() {
+          this.shootCooldown = this.shootRate;
+          this.muzzleFlash = 1;
+          const bx = this.x + Math.cos(this.angle) * (this.radius + 14);
+          const by = this.y + Math.sin(this.angle) * (this.radius + 14);
+          bullets.push(
+            new Bullet(bx, by, this.angle, 520, 10, COLORS.bullet, true),
+          );
+          for (let i = 0; i < 4; i++) {
+            particles.push(
+              new Particle(
+                bx,
+                by,
+                "#c8ff00",
+                60 + Math.random() * 80,
+                this.angle + (Math.random() - 0.5) * 0.5,
+                0.08 + Math.random() * 0.08,
+                2,
+              ),
+            );
+          }
+        }
+        takeDamage(amount) {
+          if (this.invincibilityTime > 0) return;
+          this.health -= amount;
+          this.invincibilityTime = this.invincibilityDuration;
+          shakeIntensity = 10;
+          for (let i = 0; i < 12; i++)
+            particles.push(
+              new Particle(
+                this.x,
+                this.y,
+                COLORS.player,
+                60 + Math.random() * 100,
+                Math.random() * Math.PI * 2,
+                0.3 + Math.random() * 0.25,
+                3,
+              ),
+            );
+          if (this.health <= 0) {
+            this.health = 0;
+            gameState = GS.GAME_OVER;
+            if (score > highScore) {
+              highScore = score;
+              localStorage.setItem("tacticalZeroHS", highScore);
+            }
+          }
+        }
+        draw() {
+          // Draw movement trail
+          this.trail.forEach((t) => {
+            ctx.globalAlpha = t.life * 0.15;
+            ctx.fillStyle = COLORS.player;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, this.radius * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.globalAlpha = 1;
+
+          if (
+            this.invincibilityTime > 0 &&
+            Math.floor(this.invincibilityTime * 12) % 2 === 0
+          )
+            ctx.globalAlpha = 0.35;
+
+          // Shadow
+          ctx.fillStyle = "rgba(0,0,0,0.4)";
+          ctx.beginPath();
+          ctx.ellipse(
+            this.x + 3,
+            this.y + 5,
+            this.radius * 0.8,
+            this.radius * 0.4,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+
+          // Body — tactical hexagon shape
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.angle);
+
+          // Outer ring glow
+          ctx.strokeStyle = COLORS.player;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha =
+            this.invincibilityTime > 0 &&
+            Math.floor(this.invincibilityTime * 12) % 2 === 0
+              ? 0.15
+              : 0.3;
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          // Body hexagon
+          ctx.fillStyle = COLORS.playerInner;
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+            i === 0
+              ? ctx.moveTo(Math.cos(a) * this.radius, Math.sin(a) * this.radius)
+              : ctx.lineTo(
+                  Math.cos(a) * this.radius,
+                  Math.sin(a) * this.radius,
+                );
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          // Outline
+          ctx.strokeStyle = COLORS.player;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Center dot
+          ctx.fillStyle = COLORS.player;
+          ctx.beginPath();
+          ctx.arc(0, 0, 3, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Gun
+          ctx.fillStyle = COLORS.barrel;
+          ctx.fillRect(this.radius * 0.3, -3, this.radius + 10, 6);
+          ctx.fillStyle = "#889900";
+          ctx.fillRect(this.radius + 4, -2, 8, 4);
+
+          // Muzzle flash
+          if (this.muzzleFlash > 0) {
+            ctx.fillStyle = `rgba(200,255,0,${this.muzzleFlash * 0.9})`;
+            ctx.beginPath();
+            ctx.arc(this.radius + 14, 0, 7 * this.muzzleFlash, 0, Math.PI * 2);
+            ctx.fill();
+            // Flash lines
+            ctx.strokeStyle = `rgba(255,255,180,${this.muzzleFlash})`;
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+              const fa = (i / 4) * Math.PI * 2;
+              ctx.beginPath();
+              ctx.moveTo(this.radius + 14, 0);
+              ctx.lineTo(
+                this.radius + 14 + Math.cos(fa) * 10 * this.muzzleFlash,
+                Math.sin(fa) * 10 * this.muzzleFlash,
+              );
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      class Bullet {
+        constructor(x, y, angle, speed, damage, color, isPlayer) {
+          this.x = x;
+          this.y = y;
+          this.vx = Math.cos(angle) * speed;
+          this.vy = Math.sin(angle) * speed;
+          this.radius = isPlayer ? 3 : 4;
+          this.damage = damage;
+          this.color = color;
+          this.isPlayerBullet = isPlayer;
+          this.trail = [];
+        }
+        update(dt) {
+          this.trail.push({ x: this.x, y: this.y });
+          if (this.trail.length > 6) this.trail.shift();
+          this.x += this.vx * dt;
+          this.y += this.vy * dt;
+        }
+        draw() {
+          // Trail
+          for (let i = 0; i < this.trail.length; i++) {
+            ctx.globalAlpha = (i / this.trail.length) * 0.35;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(
+              this.trail[i].x,
+              this.trail[i].y,
+              this.radius * 0.5,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = this.color;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fill();
+          // Core glow
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        isOffScreen() {
+          return (
+            this.x < -20 || this.x > CW + 20 || this.y < -20 || this.y > CH + 20
+          );
+        }
+      }
+
+      class Enemy {
+        constructor(x, y, type, lvl = 1) {
+          this.x = x;
+          this.y = y;
+          this.type = type;
+          this.speed = type.speed * (1 + (lvl - 1) * 0.1);
+          this.maxHealth = type.hp * lvl;
+          this.health = this.maxHealth;
+          this.damage = type.damage;
+          this.color = type.color;
+          this.radius = type.radius;
+          this.score = type.score;
+          this.hitFlash = 0;
+          this.angle = 0;
+          this.wobble = Math.random() * Math.PI * 2;
+        }
+        update(dt) {
+          const dx = player.x - this.x,
+            dy = player.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          this.angle = Math.atan2(dy, dx);
+          if (dist > 0) {
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
+          }
+          if (this.hitFlash > 0) this.hitFlash -= dt * 6;
+          this.wobble += dt * 2;
+        }
+        takeDamage(amount) {
+          this.health -= amount;
+          this.hitFlash = 1;
+          for (let i = 0; i < 5; i++)
+            particles.push(
+              new Particle(
+                this.x,
+                this.y,
+                this.color,
+                40 + Math.random() * 70,
+                Math.random() * Math.PI * 2,
+                0.2 + Math.random() * 0.15,
+                2.5,
+              ),
+            );
+          return this.health <= 0;
+        }
+        die() {
+          for (let i = 0; i < 22; i++)
+            particles.push(
+              new Particle(
+                this.x,
+                this.y,
+                this.color,
+                70 + Math.random() * 120,
+                Math.random() * Math.PI * 2,
+                0.4 + Math.random() * 0.35,
+                4.5,
+              ),
+            );
+          // Scorch mark particle
+          particles.push(
+            new Particle(this.x, this.y, "#222200", 5, 0, 3, this.radius * 1.5),
+          );
+          shakeIntensity = 5;
+        }
+        draw() {
+          const color = this.hitFlash > 0 ? "#ffffff" : this.color;
+
+          // Shadow
+          ctx.fillStyle = "rgba(0,0,0,0.35)";
+          ctx.beginPath();
+          ctx.ellipse(
+            this.x + 2,
+            this.y + 4,
+            this.radius * 0.8,
+            this.radius * 0.35,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.angle);
+
+          if (this.type === ENEMY_TYPES.TANK) {
+            // Tank: chunky square shape
+            ctx.fillStyle = color;
+            ctx.fillRect(
+              -this.radius,
+              -this.radius,
+              this.radius * 2,
+              this.radius * 2,
+            );
+            ctx.strokeStyle = this.hitFlash > 0 ? "#fff" : "#660000";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+              -this.radius,
+              -this.radius,
+              this.radius * 2,
+              this.radius * 2,
+            );
+            // Turret
+            ctx.fillStyle = this.hitFlash > 0 ? "#fff" : "#aa1100";
+            ctx.fillRect(0, -4, this.radius + 5, 8);
+          } else if (this.type === ENEMY_TYPES.FAST) {
+            // Fast: arrow/diamond shape
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(this.radius + 2, 0);
+            ctx.lineTo(-this.radius * 0.6, -this.radius * 0.8);
+            ctx.lineTo(-this.radius * 0.3, 0);
+            ctx.lineTo(-this.radius * 0.6, this.radius * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#aa7700";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          } else {
+            // Basic: circle with cross sight
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = this.hitFlash > 0 ? "#fff" : "#aa2200";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            // Cross
+            ctx.strokeStyle = this.hitFlash > 0 ? "#fff" : "rgba(0,0,0,0.5)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-this.radius * 0.5, 0);
+            ctx.lineTo(this.radius * 0.5, 0);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -this.radius * 0.5);
+            ctx.lineTo(0, this.radius * 0.5);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+
+          // Health bar for tanks
+          if (this.type === ENEMY_TYPES.TANK) {
+            const bw = this.radius * 2.5,
+              bh = 3,
+              hp = this.health / this.maxHealth;
+            ctx.fillStyle = "#1a0000";
+            ctx.fillRect(this.x - bw / 2, this.y - this.radius - 10, bw, bh);
+            ctx.fillStyle = hp > 0.5 ? "#cc2200" : "#ff0000";
+            ctx.fillRect(
+              this.x - bw / 2,
+              this.y - this.radius - 10,
+              bw * hp,
+              bh,
+            );
+          }
+
+          // Distance-to-player threat indicator (thin line to player)
+          const d = Math.sqrt(
+            (this.x - player.x) ** 2 + (this.y - player.y) ** 2,
+          );
+          if (d < 100) {
+            ctx.globalAlpha = (1 - d / 100) * 0.15;
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(player.x, player.y);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+        collidesWith(other) {
+          const dx = this.x - other.x,
+            dy = this.y - other.y;
+          return Math.sqrt(dx * dx + dy * dy) < this.radius + other.radius;
+        }
+      }
+
+      // ============ ENTITIES ============
+      let player = new Player();
+
+      function getEnemiesForWave(level, wave) {
+        const base = 3 + level + wave;
+        const list = [];
+        for (let i = 0; i < base; i++) {
+          let type = ENEMY_TYPES.BASIC;
+          if (level >= 2 && Math.random() < 0.2 + level * 0.03)
+            type = ENEMY_TYPES.FAST;
+          if (level >= 4 && Math.random() < 0.1 + level * 0.02)
+            type = ENEMY_TYPES.TANK;
+          list.push(type);
+        }
+        return list;
+      }
+
+      function spawnEnemy(type) {
+        let x, y;
+        const side = Math.floor(Math.random() * 4),
+          m = 35;
+        if (side === 0) {
+          x = Math.random() * CW;
+          y = -m;
+        } else if (side === 1) {
+          x = CW + m;
+          y = Math.random() * CH;
+        } else if (side === 2) {
+          x = Math.random() * CW;
+          y = CH + m;
+        } else {
+          x = -m;
+          y = Math.random() * CH;
+        }
+        enemies.push(new Enemy(x, y, type, currentLevel));
+      }
+
+      function startWave() {
+        const types = getEnemiesForWave(currentLevel, currentWave);
+        enemiesRemaining = types.length;
+        types.forEach((type, i) =>
+          setTimeout(() => {
+            if (gameState === GS.PLAYING) spawnEnemy(type);
+          }, i * 300),
+        );
+      }
+
+      function nextWave() {
+        currentWave++;
+        if (currentWave > wavesPerLevel) {
+          currentWave = 1;
+          currentLevel++;
+          if (currentLevel > totalLevels) {
+            gameState = GS.VICTORY;
+          } else {
+            player.health = Math.min(player.maxHealth, player.health + 30);
+            gameState = GS.LEVEL_COMPLETE;
+            levelTransitionTimer = 2;
+          }
+        } else startWave();
+      }
+
+      // ============ INPUT ============
+      document.addEventListener("keydown", (e) => {
+        keys[e.code] = true;
+        if (e.code === "Escape") {
+          if (gameState === GS.PLAYING) gameState = GS.PAUSED;
+          else if (gameState === GS.PAUSED) gameState = GS.PLAYING;
+        }
+      });
+      document.addEventListener("keyup", (e) => (keys[e.code] = false));
+      canvas.addEventListener("mousemove", (e) => {
+        const r = canvas.getBoundingClientRect();
+        mouseX = e.clientX - r.left;
+        mouseY = e.clientY - r.top;
+      });
+      canvas.addEventListener("mousedown", (e) => {
+        if (e.button === 0) {
+          mouseDown = true;
+          if (
+            gameState === GS.MENU ||
+            gameState === GS.GAME_OVER ||
+            gameState === GS.VICTORY
+          )
+            startGame();
+        }
+      });
+      canvas.addEventListener("mouseup", (e) => {
+        if (e.button === 0) mouseDown = false;
+      });
+      canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+      // ============ GAME FUNCTIONS ============
+      function startGame() {
+        gameState = GS.PLAYING;
+        score = 0;
+        currentLevel = 1;
+        currentWave = 1;
+        player.reset();
+        bullets = [];
+        enemies = [];
+        particles = [];
+        ui.style.display = "block";
+        startWave();
+      }
+
+      function drawBackground() {
+        ctx.fillStyle = COLORS.bg;
+        ctx.fillRect(0, 0, CW, CH);
+
+        // Tactical grid — two layers
+        const gs = 40;
+        gridOffset = (gridOffset + 0.2) % gs;
+
+        // Main grid
+        ctx.strokeStyle = COLORS.grid;
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= CW + gs; x += gs) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, CH);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= CH + gs; y += gs) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(CW, y);
+          ctx.stroke();
+        }
+
+        // Accent grid (larger, dimmer)
+        ctx.strokeStyle = COLORS.gridAccent;
+        ctx.lineWidth = 1;
+        const gs2 = 120;
+        for (let x = 0; x <= CW + gs2; x += gs2) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, CH);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= CH + gs2; y += gs2) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(CW, y);
+          ctx.stroke();
+        }
+
+        // Dot intersections
+        ctx.fillStyle = "#1a1f0f";
+        for (let x = 0; x <= CW; x += gs) {
+          for (let y = 0; y <= CH; y += gs) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Tactical text helper
+      function drawTacticalText(
+        text,
+        x,
+        y,
+        size,
+        color,
+        alpha = 1,
+        spacing = 4,
+      ) {
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = color;
+        ctx.font = `${size}px 'Share Tech Mono', monospace`;
+        ctx.textAlign = "center";
+        ctx.letterSpacing = `${spacing}px`;
+        ctx.fillText(text, x, y);
+        ctx.globalAlpha = 1;
+      }
+
+      function drawMenu() {
+        drawBackground();
+
+        // Central panel
+        const pw = 500,
+          ph = 360,
+          px = (CW - pw) / 2,
+          py = (CH - ph) / 2 - 20;
+        ctx.fillStyle = "rgba(10,14,6,0.92)";
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = "rgba(200,255,0,0.3)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px, py, pw, ph);
+
+        // Inner border
+        ctx.strokeStyle = "rgba(200,255,0,0.08)";
+        ctx.strokeRect(px + 6, py + 6, pw - 12, ph - 12);
+
+        // Corner ticks
+        [
+          [px, py],
+          [px + pw, py],
+          [px, py + ph],
+          [px + pw, py + ph],
+        ].forEach(([cx, cy], i) => {
+          const sx = i % 2 === 0 ? 1 : -1,
+            sy = i < 2 ? 1 : -1;
+          ctx.strokeStyle = "rgba(200,255,0,0.6)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + sx * 2, cy);
+          ctx.lineTo(cx + sx * 16, cy);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + sy * 2);
+          ctx.lineTo(cx, cy + sy * 16);
+          ctx.stroke();
+        });
+
+        // Title
+        ctx.fillStyle = "#c8ff00";
+        ctx.font = "bold 52px 'Rajdhani', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("TACTICAL ZERO", CW / 2, py + 70);
+
+        ctx.fillStyle = "rgba(200,255,0,0.4)";
+        ctx.font = "11px 'Share Tech Mono'";
+        ctx.fillText("── CLASSIFIED COMBAT SIMULATION ──", CW / 2, py + 92);
+
+        // Divider
+        ctx.strokeStyle = "rgba(200,255,0,0.2)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px + 30, py + 108);
+        ctx.lineTo(px + pw - 30, py + 108);
+        ctx.stroke();
+
+        // Controls
+        const controls = [
+          ["WASD / ARROWS", "MOVE"],
+          ["MOUSE", "AIM"],
+          ["LEFT CLICK", "FIRE"],
+          ["ESC", "PAUSE / RESUME"],
+        ];
+        ctx.textAlign = "left";
+        controls.forEach(([key, val], i) => {
+          const cy = py + 140 + i * 38;
+          ctx.fillStyle = "rgba(200,255,0,0.5)";
+          ctx.font = "11px 'Share Tech Mono'";
+          ctx.fillText(key, px + 60, cy);
+          ctx.fillStyle = "#c8d4a0";
+          ctx.font = "13px 'Share Tech Mono'";
+          ctx.fillText("▸  " + val, px + 200, cy);
+        });
+
+        // Divider
+        ctx.strokeStyle = "rgba(200,255,0,0.2)";
+        ctx.beginPath();
+        ctx.moveTo(px + 30, py + 295);
+        ctx.lineTo(px + pw - 30, py + 295);
+        ctx.stroke();
+
+        // Start prompt — pulsing
+        const pulse = 0.6 + Math.sin(Date.now() * 0.004) * 0.4;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = "#c8ff00";
+        ctx.font = "bold 18px 'Rajdhani'";
+        ctx.textAlign = "center";
+        ctx.fillText("[ CLICK TO DEPLOY ]", CW / 2, py + 330);
+        ctx.globalAlpha = 1;
+
+        // High score
+        ctx.fillStyle = "rgba(200,255,0,0.25)";
+        ctx.font = "10px 'Share Tech Mono'";
+        ctx.fillText("BEST SCORE: " + highScore, CW / 2, py + ph + 30);
+      }
+
+      function drawOverlayPanel(title, titleColor, lines) {
+        ctx.fillStyle = "rgba(5,7,3,0.88)";
+        ctx.fillRect(0, 0, CW, CH);
+
+        const pw = 460,
+          ph = 280,
+          px = (CW - pw) / 2,
+          py = (CH - ph) / 2;
+        ctx.fillStyle = "rgba(10,14,6,0.97)";
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = titleColor;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.5;
+        ctx.strokeRect(px, py, pw, ph);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = titleColor;
+        ctx.font = "bold 40px 'Rajdhani'";
+        ctx.textAlign = "center";
+        ctx.fillText(title, CW / 2, py + 60);
+
+        ctx.fillStyle = "rgba(200,255,0,0.2)";
+        ctx.fillRect(px + 20, py + 74, pw - 40, 1);
+
+        lines.forEach(([text, color, size], i) => {
+          ctx.fillStyle = color || "#c8d4a0";
+          ctx.font = `${size || 14}px 'Share Tech Mono'`;
+          ctx.fillText(text, CW / 2, py + 110 + i * 42);
+        });
+      }
+
+      function update(dt) {
+        if (gameState === GS.LEVEL_COMPLETE) {
+          levelTransitionTimer -= dt;
+          if (levelTransitionTimer <= 0) {
+            gameState = GS.PLAYING;
+            startWave();
+          }
+          return;
+        }
+        if (gameState !== GS.PLAYING) return;
+
+        player.update(dt);
+        bullets.forEach((b) => b.update(dt));
+        bullets = bullets.filter((b) => !b.isOffScreen());
+        enemies.forEach((e) => e.update(dt));
+        particles.forEach((p) => p.update(dt));
+        particles = particles.filter((p) => !p.isDead());
+
+        // Bullet vs enemy
+        bullets = bullets.filter((b) => {
+          if (!b.isPlayerBullet) return true;
+          for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            const dx = b.x - e.x,
+              dy = b.y - e.y;
+            if (Math.sqrt(dx * dx + dy * dy) < b.radius + e.radius) {
+              if (e.takeDamage(b.damage)) {
+                e.die();
+                enemies.splice(i, 1);
+                score += e.score;
+                enemiesRemaining--;
+                if (enemies.length === 0 && enemiesRemaining <= 0)
+                  setTimeout(() => {
+                    if (gameState === GS.PLAYING) nextWave();
+                  }, 500);
+              }
+              return false;
+            }
+          }
+          return true;
+        });
+
+        // Enemy vs player
+        enemies.forEach((e) => {
+          if (e.collidesWith(player)) {
+            player.takeDamage(e.damage);
+            const dx = e.x - player.x,
+              dy = e.y - player.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d > 0) {
+              e.x += (dx / d) * 50;
+              e.y += (dy / d) * 50;
+            }
+          }
+        });
+
+        shakeIntensity *= 0.88;
+        if (shakeIntensity < 0.1) shakeIntensity = 0;
+
+        // Update HUD elements
+        const hp = Math.max(0, player.health);
+        healthFill.style.width = (hp / player.maxHealth) * 100 + "%";
+        healthVal.textContent = Math.ceil(hp);
+        if (hp < 30) {
+          healthFill.style.background = "#ff3300";
+          healthFill.style.boxShadow = "0 0 8px #ff3300";
+        } else {
+          healthFill.style.background = "var(--accent)";
+          healthFill.style.boxShadow = "0 0 8px var(--accent)";
+        }
+        levelDisplay.textContent = currentLevel;
+        waveDisplay.textContent = currentWave;
+        enemiesDisplay.textContent = enemies.length;
+        scoreValEl.textContent = score;
+        ammoDisplay.textContent = mouseDown ? "◉ FIRING" : "STANDBY";
+      }
+
+      function draw() {
+        ctx.save();
+        if (shakeIntensity > 0)
+          ctx.translate(
+            (Math.random() - 0.5) * shakeIntensity,
+            (Math.random() - 0.5) * shakeIntensity,
+          );
+
+        if (gameState === GS.MENU) {
+          drawMenu();
+          ctx.restore();
+          return;
+        }
+
+        drawBackground();
+
+        // Range circles around player (tactical feel)
+        ctx.strokeStyle = "rgba(200,255,0,0.04)";
+        ctx.lineWidth = 1;
+        [80, 160, 240].forEach((r) => {
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+
+        particles.forEach((p) => p.draw());
+        bullets.forEach((b) => b.draw());
+        enemies.forEach((e) => e.draw());
+        player.draw();
+
+        ctx.restore();
+
+        // Overlays
+        if (gameState === GS.PAUSED) {
+          drawOverlayPanel("PAUSED", "#c8ff00", [
+            ["MISSION SUSPENDED", "rgba(200,255,0,0.6)", 12],
+            ["", ""],
+            ["ESC  —  RESUME DEPLOYMENT", "#c8d4a0", 13],
+          ]);
+        }
+        if (gameState === GS.LEVEL_COMPLETE) {
+          drawOverlayPanel("SECTOR CLEAR", "#c8ff00", [
+            [
+              "LEVEL " + (currentLevel - 1) + " COMPLETE",
+              "rgba(200,255,0,0.7)",
+              13,
+            ],
+            ["+30 INTEGRITY RESTORED", "#00ff88", 14],
+            ["PREPARE FOR NEXT SECTOR", "rgba(200,200,180,0.5)", 11],
+          ]);
+        }
+        if (gameState === GS.GAME_OVER) {
+          ui.style.display = "none";
+          drawOverlayPanel("MISSION FAILED", "#ff4d00", [
+            ["OPERATOR DOWN", "rgba(255,77,0,0.7)", 12],
+            ["SCORE: " + score, "#c8d4a0", 22],
+            [
+              score >= highScore && score > 0
+                ? "NEW HIGH SCORE"
+                : "BEST: " + highScore,
+              score >= highScore && score > 0
+                ? "#c8ff00"
+                : "rgba(200,200,180,0.4)",
+              13,
+            ],
+            ["[ CLICK TO REDEPLOY ]", "rgba(200,255,0,0.5)", 11],
+          ]);
+        }
+        if (gameState === GS.VICTORY) {
+          ui.style.display = "none";
+          drawOverlayPanel("MISSION COMPLETE", "#c8ff00", [
+            ["ALL SECTORS SECURED", "rgba(200,255,0,0.7)", 12],
+            ["SCORE: " + score, "#c8d4a0", 22],
+            [
+              score >= highScore ? "NEW HIGH SCORE" : "BEST: " + highScore,
+              score >= highScore ? "#c8ff00" : "rgba(200,200,180,0.4)",
+              13,
+            ],
+            ["[ CLICK TO PLAY AGAIN ]", "rgba(200,255,0,0.5)", 11],
+          ]);
+        }
+      }
+
+      function loop(ts) {
+        const dt = Math.min((ts - lastTime) / 1000, 0.1);
+        lastTime = ts;
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
